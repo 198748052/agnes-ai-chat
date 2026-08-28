@@ -1,0 +1,16 @@
+[Unit]
+Description=Agnes AI Chat Go backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/agnes-server
+EnvironmentFile=/opt/agnes-server/.env
+ExecStart=/opt/agnes-server/bin/agnes-server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

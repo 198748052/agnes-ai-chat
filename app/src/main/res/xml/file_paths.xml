@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider 路径映射：拍照临时文件存放于 cacheDir/camera/ -->
+<paths>
+    <cache-path
+        name="camera_cache"
+        path="camera/" />
+</paths>

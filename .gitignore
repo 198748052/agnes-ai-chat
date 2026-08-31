@@ -2,6 +2,8 @@
 .claude
 .gemini
 .opencode
+.monkeycode/
+HANDOFF.md
 
 # IDE and Editors
 **/.idea/

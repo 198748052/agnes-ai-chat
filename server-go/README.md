@@ -93,7 +93,7 @@ server-go/
 
 ## 与安卓 App 对接
 
-App 的 `BuildConfig.SERVER_BASE_URL` 默认指向 `http://your-server:8000/`。构建时覆盖为 Go 服务器地址：
+构建时通过 Gradle 属性把 App 的业务服务器地址指向 Go 服务器：
 
 ```bash
 cd ..

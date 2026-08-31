@@ -21,7 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 
-const val BLOG_URL = "http://s.xulove.top"
+const val BLOG_URL = "http://bk.topsygf.cn"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -12,14 +12,8 @@ android {
         applicationId = "com.agnesai.chat"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.0.3"
-
-        buildConfigField(
-            "String",
-            "SERVER_BASE_URL",
-            "\"${project.findProperty("SERVER_BASE_URL") ?: "http://your-server:8000/"}\""
-        )
+        versionCode = 6
+        versionName = "1.0.6"
     }
 
     buildTypes {

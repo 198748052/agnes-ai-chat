@@ -38,7 +38,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.agnesai.chat.data.stats.PeriodCounts
-import com.agnesai.chat.data.stats.StatsSource
 import com.agnesai.chat.data.storage.StorageCategory
 import com.agnesai.chat.data.storage.StorageSummary
 import com.agnesai.chat.data.storage.formatBytes
@@ -111,8 +110,6 @@ private fun StatsContent(state: StatsUiState) {
             .padding(vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        SourceBadge(source = state.source)
-
         CountCard(
             title = "图片生成",
             icon = Icons.Filled.Image,
@@ -128,27 +125,6 @@ private fun StatsContent(state: StatsUiState) {
             StorageCard(storage)
         }
         Spacer(Modifier.height(8.dp))
-    }
-}
-
-@Composable
-private fun SourceBadge(source: StatsSource) {
-    Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-    ) {
-        Text(
-            text = when (source) {
-                StatsSource.SERVER -> "数据来源：服务端统计"
-                StatsSource.LOCAL -> "数据来源：离线统计（后端暂不可用）"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-        )
     }
 }
 

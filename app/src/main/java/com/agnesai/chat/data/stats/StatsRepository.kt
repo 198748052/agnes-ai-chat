@@ -2,8 +2,6 @@ package com.agnesai.chat.data.stats
 
 import com.agnesai.chat.data.local.MessageDao
 import com.agnesai.chat.data.local.SessionType
-import com.agnesai.chat.data.network.PeriodCountsDto
-import com.agnesai.chat.data.network.ServerApiService
 import kotlinx.coroutines.flow.first
 import java.time.DayOfWeek
 import java.time.Instant
@@ -17,45 +15,25 @@ data class PeriodCounts(
     val total: Int = 0
 )
 
-/** 统计数据来源。 */
-enum class StatsSource { SERVER, LOCAL }
-
 /** 生成统计结果。 */
 data class StatsResult(
-    val source: StatsSource,
     val image: PeriodCounts,
     val video: PeriodCounts
 )
 
 /**
- * 生成统计仓库：优先请求后端聚合统计，后端不可用时回退到本地已完成作品聚合。
+ * 生成统计仓库：基于本地已完成作品聚合统计。
  */
 class StatsRepository(
-    private val serverApiService: ServerApiService,
     private val messageDao: MessageDao
 ) {
 
     suspend fun loadStats(
         zone: ZoneId = ZoneId.systemDefault(),
         now: Instant = Instant.now()
-    ): StatsResult =
-        runCatching { fetchServerStats() }.getOrNull() ?: computeLocalStats(zone, now)
-
-    private suspend fun fetchServerStats(): StatsResult? {
-        val response = serverApiService.getStats()
-        if (!response.isSuccessful) return null
-        val body = response.body() ?: return null
-        return StatsResult(
-            source = StatsSource.SERVER,
-            image = body.image.toPeriodCounts(),
-            video = body.video.toPeriodCounts()
-        )
-    }
-
-    private suspend fun computeLocalStats(zone: ZoneId, now: Instant): StatsResult {
+    ): StatsResult {
         val works = messageDao.observeCompletedWorks().first()
         return StatsResult(
-            source = StatsSource.LOCAL,
             image = aggregateCounts(
                 works.filter { it.sessionType == SessionType.IMAGE }.map { it.timestamp },
                 zone,
@@ -69,9 +47,6 @@ class StatsRepository(
         )
     }
 }
-
-private fun PeriodCountsDto.toPeriodCounts(): PeriodCounts =
-    PeriodCounts(today = today, week = week, month = month, total = total)
 
 /**
  * 按本地时区聚合计数：今日（零点起）、本周（周一起）、本月（1 日起）、累计。

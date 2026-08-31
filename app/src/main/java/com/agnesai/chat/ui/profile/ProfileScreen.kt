@@ -48,13 +48,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.agnesai.chat.BuildConfig
-import com.agnesai.chat.data.auth.AuthState
-import com.agnesai.chat.data.stats.StatsSource
 import com.agnesai.chat.data.storage.formatBytes
 import kotlinx.coroutines.launch
 
@@ -65,16 +61,12 @@ fun ProfileScreen(
     onOpenStorage: () -> Unit,
     onOpenMyWorks: () -> Unit,
     onOpenStats: () -> Unit,
-    onEditProfile: () -> Unit,
-    authViewModel: com.agnesai.chat.ui.auth.AuthViewModel,
     profileViewModel: ProfileViewModel
 ) {
     var showAbout by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val authState by authViewModel.authState.collectAsState()
     val profileState by profileViewModel.uiState.collectAsState()
-    val user = (authState as? AuthState.LoggedIn)?.user
 
     fun placeholder(name: String) {
         scope.launch {
@@ -101,13 +93,7 @@ fun ProfileScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ProfileHeader(
-                nickname = user?.nickname?.ifEmpty { "AI 创作者" } ?: "AI 创作者",
-                username = user?.username,
-                userId = user?.id,
-                avatarUrl = user?.avatarUrl,
-                onEditProfile = onEditProfile
-            )
+            ProfileHeader()
 
             CreationOverviewCard(
                 state = profileState,
@@ -132,9 +118,6 @@ fun ProfileScreen(
                     MenuItem(Icons.Filled.Info, "关于我们", "版本信息") { showAbout = true }
                 )
             )
-
-            // 退出登录：清除本地登录态后由 AppRoot 门禁跳回登录页
-            LogoutButton(onClick = { authViewModel.logout() })
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -152,13 +135,7 @@ private data class MenuItem(
 )
 
 @Composable
-private fun ProfileHeader(
-    nickname: String,
-    username: String?,
-    userId: String?,
-    avatarUrl: String?,
-    onEditProfile: () -> Unit
-) {
+private fun ProfileHeader() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -169,68 +146,35 @@ private fun ProfileHeader(
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-        ) {
-            if (!avatarUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = avatarUrl,
-                    contentDescription = "头像",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(80.dp).clip(CircleShape)
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = nickname.take(1),
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Bold
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary
+                        )
                     )
-                }
-            }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "AI",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onPrimary,
+                fontWeight = FontWeight.Bold
+            )
         }
         Spacer(Modifier.height(10.dp))
         Text(
-            text = nickname,
+            text = "AI 创作者",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(2.dp))
         Text(
-            text = buildString {
-                if (!username.isNullOrBlank()) append("账号：$username")
-                if (!userId.isNullOrBlank()) {
-                    if (isNotEmpty()) append(" · ")
-                    append("ID: $userId")
-                }
-            }.ifEmpty { "ID: ${BuildConfig.VERSION_NAME} · Agnes AI Chat" },
+            text = "Agnes AI Chat v${BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(6.dp))
-        Surface(
-            onClick = onEditProfile,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        ) {
-            Text(
-                text = "编辑资料",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 7.dp)
-            )
-        }
     }
 }
 
@@ -256,7 +200,7 @@ private fun CreationOverviewCard(
                 )
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = if (state.source == StatsSource.SERVER) "服务端统计" else "离线统计",
+                    text = "本地统计",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -405,27 +349,6 @@ private fun ProfileMenuCard(
             }
             Spacer(Modifier.height(6.dp))
         }
-    }
-}
-
-@Composable
-private fun LogoutButton(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-    ) {
-        Text(
-            text = "退出登录",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(vertical = 12.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
     }
 }
 

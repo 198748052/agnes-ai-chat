@@ -2,8 +2,7 @@
 <network-security-config>
     <!--
         允许所有明文流量（含 HTTP）：
-        1. 业务服务器 BuildConfig.SERVER_BASE_URL 默认为 http://your-server:8000/
-        2. Agnes 图片/视频生成返回的 CDN 地址域名不固定（如 http 或 https），
+        1. Agnes 图片/视频生成返回的 CDN 地址域名不固定（如 http 或 https），
            app 内 Coil 加载这些图片时若被明文策略拦截，会导致"图片显示不出来"，
            而分享链接在浏览器可正常加载。因此放开明文限制。
     -->

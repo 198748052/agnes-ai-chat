@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agnesai.chat.data.stats.PeriodCounts
 import com.agnesai.chat.data.stats.StatsResult
-import com.agnesai.chat.data.stats.StatsSource
 import com.agnesai.chat.data.storage.StorageSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +13,6 @@ import kotlinx.coroutines.launch
 
 data class ProfileUiState(
     val loading: Boolean = true,
-    val source: StatsSource = StatsSource.LOCAL,
     val image: PeriodCounts = PeriodCounts(),
     val video: PeriodCounts = PeriodCounts(),
     val storage: StorageSummary? = null,
@@ -45,7 +43,6 @@ class ProfileViewModel(
                 _uiState.update {
                     it.copy(
                         loading = false,
-                        source = stats.source,
                         image = stats.image,
                         video = stats.video,
                         storage = storage

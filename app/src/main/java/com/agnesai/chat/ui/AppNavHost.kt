@@ -28,12 +28,9 @@ import com.agnesai.chat.di.AppContainer
 import com.agnesai.chat.ui.blog.BlogScreen
 import com.agnesai.chat.ui.chat.ChatScreen
 import com.agnesai.chat.ui.chat.ChatViewModel
-import com.agnesai.chat.ui.auth.AuthViewModel
 import com.agnesai.chat.ui.generation.GenerationViewModel
 import com.agnesai.chat.ui.myworks.MyWorksScreen
 import com.agnesai.chat.ui.myworks.MyWorksViewModel
-import com.agnesai.chat.ui.profile.ProfileEditScreen
-import com.agnesai.chat.ui.profile.ProfileEditViewModel
 import com.agnesai.chat.ui.profile.ProfileScreen
 import com.agnesai.chat.ui.profile.ProfileViewModel
 import com.agnesai.chat.ui.settings.SettingsScreen
@@ -47,7 +44,6 @@ object Routes {
     const val CHAT = "chat"
     const val BLOG = "blog"
     const val PROFILE = "profile"
-    const val PROFILE_EDIT = "profile_edit"
     const val SETTINGS = "settings"
     const val STORAGE = "storage"
     const val STATS = "stats"
@@ -138,22 +134,14 @@ fun AppNavHost(appContainer: AppContainer) {
                 BlogScreen()
             }
             composable(Routes.PROFILE) {
-                val authViewModel: AuthViewModel = viewModel(factory = appContainer.authViewModelFactory)
                 val profileViewModel: ProfileViewModel = viewModel(factory = appContainer.profileViewModelFactory)
                 ProfileScreen(
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenStorage = { navController.navigate(Routes.STORAGE) },
                     onOpenMyWorks = { navController.navigate(Routes.MY_WORKS) },
                     onOpenStats = { navController.navigate(Routes.STATS) },
-                    onEditProfile = { navController.navigate(Routes.PROFILE_EDIT) },
-                    authViewModel = authViewModel,
                     profileViewModel = profileViewModel
                 )
-            }
-            composable(Routes.PROFILE_EDIT) {
-                val viewModel: ProfileEditViewModel =
-                    viewModel(factory = appContainer.profileEditViewModelFactory)
-                ProfileEditScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
             }
             composable(Routes.SETTINGS) {
                 val viewModel: SettingsViewModel = viewModel(factory = appContainer.settingsViewModelFactory)

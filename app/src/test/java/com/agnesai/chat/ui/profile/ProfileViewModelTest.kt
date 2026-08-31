@@ -2,7 +2,6 @@ package com.agnesai.chat.ui.profile
 
 import com.agnesai.chat.data.stats.PeriodCounts
 import com.agnesai.chat.data.stats.StatsResult
-import com.agnesai.chat.data.stats.StatsSource
 import com.agnesai.chat.data.storage.StorageCategory
 import com.agnesai.chat.data.storage.StorageSummary
 import com.agnesai.chat.data.storage.StorageType
@@ -29,13 +28,11 @@ class ProfileViewModelTest {
     }
 
     private fun stats(
-        source: StatsSource = StatsSource.SERVER,
         imageTotal: Int = 5,
         videoTotal: Int = 3,
         todayImage: Int = 1,
         todayVideo: Int = 2
     ) = StatsResult(
-        source = source,
         image = PeriodCounts(today = todayImage, week = 2, month = 4, total = imageTotal),
         video = PeriodCounts(today = todayVideo, week = 1, month = 2, total = videoTotal)
     )
@@ -63,7 +60,6 @@ class ProfileViewModelTest {
         assertNull(vm.uiState.value.error)
         assertEquals(5, vm.uiState.value.image.total)
         assertEquals(3, vm.uiState.value.video.total)
-        assertEquals(StatsSource.SERVER, vm.uiState.value.source)
         assertNotNull(vm.uiState.value.storage)
         assertEquals(2048L, vm.uiState.value.storage?.totalBytes)
     }
@@ -133,19 +129,5 @@ class ProfileViewModelTest {
 
         assertEquals(9, vm.uiState.value.image.total)
         assertTrue(vm.uiState.value.loading.not())
-    }
-
-    @Test
-    fun `offline source reflected in state`() = runTest {
-        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val vm = ProfileViewModel(
-            loadStats = { stats(source = StatsSource.LOCAL) },
-            loadStorage = { null }
-        )
-
-        testScheduler.advanceUntilIdle()
-
-        assertEquals(StatsSource.LOCAL, vm.uiState.value.source)
-        assertNull(vm.uiState.value.storage)
     }
 }

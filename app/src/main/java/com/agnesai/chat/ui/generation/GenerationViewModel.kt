@@ -8,6 +8,7 @@ import com.agnesai.chat.data.generation.GenerationRepository
 import com.agnesai.chat.data.local.MessageStatus
 import com.agnesai.chat.data.local.SessionType
 import com.agnesai.chat.data.network.IMAGE_MODEL_2_0
+import com.agnesai.chat.data.network.VIDEO_MODEL_2_5_FLASH
 import com.agnesai.chat.data.repository.ChatRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -211,6 +212,23 @@ class GenerationViewModel(
     }
 
     /**
+     * 切换视频模型，并校正不兼容的参数：
+     * 2.5 Flash 仅支持 720P；v2.0 仅支持 5s/10s 两档时长。
+     */
+    fun setVideoModel(model: String) {
+        _uiState.update { state ->
+            var video = state.video.copy(videoModel = model)
+            if (model == VIDEO_MODEL_2_5_FLASH && video.quality != "720P") {
+                video = video.copy(quality = "720P")
+            }
+            if (model != VIDEO_MODEL_2_5_FLASH && video.duration !in V20_DURATIONS) {
+                video = video.copy(duration = "5s")
+            }
+            state.copy(video = video)
+        }
+    }
+
+    /**
      * 以对话方式发送视频生成请求：提示词与结果作为消息持久化到视频会话。
      *
      * @return true 表示请求已受理，false 表示被拒绝（提示词为空/生成中/无会话）
@@ -223,6 +241,7 @@ class GenerationViewModel(
 
         val params = GenerationParams(
             type = SessionType.VIDEO,
+            model = state.videoModel,
             duration = state.duration,
             quality = state.quality,
             ratio = state.ratio,
@@ -248,6 +267,7 @@ class GenerationViewModel(
             }
             val result = repository.generateVideo(
                 prompt = prompt,
+                model = state.videoModel,
                 firstFrameImage = state.firstFrameImage,
                 lastFrameImage = state.lastFrameImage,
                 duration = state.duration,
@@ -303,6 +323,7 @@ class GenerationViewModel(
             }
             val result = repository.generateVideo(
                 prompt = state.prompt.ifBlank { _uiState.value.lastVideoPrompt },
+                model = state.videoModel,
                 firstFrameImage = state.firstFrameImage,
                 lastFrameImage = state.lastFrameImage,
                 duration = state.duration,
@@ -338,12 +359,15 @@ class GenerationViewModel(
     }
 
     fun resetVideo() {
-        _uiState.update { it.copy(video = VideoGenState()) }
+        _uiState.update { it.copy(video = VideoGenState(videoModel = it.video.videoModel)) }
     }
 
     // ========== 工具 ==========
 
-    /** 2.1 模型使用档位尺寸，2.0 模型使用精确尺寸。 */
+    /** v2.0 模型支持的时长档位 */
+    private val V20_DURATIONS = setOf("5s", "10s")
+
+    /** 2.1/2.5 模型使用档位尺寸，2.0 模型使用精确尺寸。 */
     private fun imageSizeFor(model: String): String? =
         if (model == IMAGE_MODEL_2_0) "1024x1024" else "2K"
 

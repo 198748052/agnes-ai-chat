@@ -1,12 +1,13 @@
 package com.agnesai.chat.ui.generation
 
-import com.agnesai.chat.data.network.IMAGE_MODEL_2_1
+import com.agnesai.chat.data.network.IMAGE_MODEL_2_5
+import com.agnesai.chat.data.network.VIDEO_MODEL_2_5_FLASH
 
 /** 图片生成面板（表单式）状态 */
 data class ImageGenState(
     val prompt: String = "",
-    /** 图片模型：agnes-image-2.0-flash / agnes-image-2.1-flash */
-    val imageModel: String = IMAGE_MODEL_2_1,
+    /** 图片模型：agnes-image-2.5-flash / agnes-image-2.1-flash / agnes-image-2.0-flash */
+    val imageModel: String = IMAGE_MODEL_2_5,
     /** 图生图/多图合成输入的参考图（Data URI Base64 列表，最多 6 张） */
     val referenceImages: List<String> = emptyList(),
     /** 生成比例：1:1 / 16:9 / 9:16 */
@@ -22,6 +23,8 @@ data class ImageGenState(
 /** 视频生成面板（表单式）状态 */
 data class VideoGenState(
     val prompt: String = "",
+    /** 视频模型：agnes-video-2.5-flash / agnes-video-v2.0 */
+    val videoModel: String = VIDEO_MODEL_2_5_FLASH,
     /** 首帧图（Data URI Base64，可选） */
     val firstFrameImage: String? = null,
     /** 尾帧图（Data URI Base64，可选） */

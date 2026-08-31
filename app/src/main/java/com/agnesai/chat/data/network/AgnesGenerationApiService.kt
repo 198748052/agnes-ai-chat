@@ -27,11 +27,19 @@ interface AgnesGenerationApiService {
         @Body request: VideoCreateRequest
     ): Response<VideoCreateResponse>
 
+    // Agnes Video 2.5 Flash 复用同一端点，请求体为新一代参数结构
+    @POST("v1/videos")
+    suspend fun createVideoV25(
+        @Header("Authorization") authorization: String,
+        @Body request: VideoV25CreateRequest
+    ): Response<VideoCreateResponse>
+
     // 官方文档推荐方式：GET /agnesapi?video_id=<VIDEO_ID>&model_name=<MODEL>
+    // keyframe / reference 模式的任务查询必须携带 model_name
     @GET("agnesapi")
     suspend fun getVideoResult(
         @Header("Authorization") authorization: String,
         @Query("video_id") videoId: String,
-        @Query("model_name") modelName: String = VIDEO_MODEL
+        @Query("model_name") modelName: String
     ): Response<VideoResultResponse>
 }

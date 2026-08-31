@@ -94,6 +94,9 @@ import com.agnesai.chat.data.local.Roles
 import com.agnesai.chat.data.local.SessionType
 import com.agnesai.chat.data.network.IMAGE_MODEL_2_0
 import com.agnesai.chat.data.network.IMAGE_MODEL_2_1
+import com.agnesai.chat.data.network.IMAGE_MODEL_2_5
+import com.agnesai.chat.data.network.VIDEO_MODEL
+import com.agnesai.chat.data.network.VIDEO_MODEL_2_5_FLASH
 import com.agnesai.chat.ui.chat.UiMessage
 import com.agnesai.chat.ui.common.VideoPlayerDialog
 import com.agnesai.chat.ui.common.downloadVideoToInternalStorage
@@ -330,6 +333,7 @@ fun VideoGenerationPanel(
             },
             onRemoveFirstFrame = { viewModel.setFirstFrameImage(null) },
             onRemoveLastFrame = { viewModel.setLastFrameImage(null) },
+            onSelectModel = viewModel::setVideoModel,
             onSelectDuration = viewModel::setVideoDuration,
             onSelectQuality = viewModel::setVideoQuality,
             onSelectRatio = viewModel::setVideoRatio
@@ -494,6 +498,17 @@ private fun GenerationWelcomeHint(text: String) {
 
 // ========== 参数选择区 ==========
 
+/** 图片模型的展示名。 */
+private fun imageModelLabel(model: String): String = when (model) {
+    IMAGE_MODEL_2_5 -> "2.5 Flash"
+    IMAGE_MODEL_2_0 -> "2.0 Flash"
+    else -> "2.1 Flash"
+}
+
+/** 视频模型的展示名。 */
+private fun videoModelLabel(model: String): String =
+    if (model == VIDEO_MODEL_2_5_FLASH) "2.5 Flash" else "v2.0"
+
 @Composable
 private fun ImageParamsBar(
     state: ImageGenState,
@@ -526,10 +541,11 @@ private fun ImageParamsBar(
             )
             CollapsibleParamChip(
                 label = "模型",
-                valueLabel = if (state.imageModel == IMAGE_MODEL_2_1) "2.1 Flash" else "2.0 Flash",
+                valueLabel = imageModelLabel(state.imageModel),
                 options = listOf(
-                    IMAGE_MODEL_2_1 to IMAGE_MODEL_2_1,
-                    IMAGE_MODEL_2_0 to IMAGE_MODEL_2_0
+                    IMAGE_MODEL_2_5 to "2.5 Flash",
+                    IMAGE_MODEL_2_1 to "2.1 Flash",
+                    IMAGE_MODEL_2_0 to "2.0 Flash"
                 ),
                 selected = state.imageModel,
                 enabled = enabled,
@@ -561,12 +577,25 @@ private fun VideoParamsBar(
     onPickLastFrame: () -> Unit,
     onRemoveFirstFrame: () -> Unit,
     onRemoveLastFrame: () -> Unit,
+    onSelectModel: (String) -> Unit,
     onSelectDuration: (String) -> Unit,
     onSelectQuality: (String) -> Unit,
     onSelectRatio: (String) -> Unit
 ) {
     var framesExpanded by remember {
         mutableStateOf(state.firstFrameImage != null || state.lastFrameImage != null)
+    }
+    // 2.5 Flash 支持 4-12 秒且仅 720P；v2.0 仅支持 5s/10s
+    val isV25 = state.videoModel == VIDEO_MODEL_2_5_FLASH
+    val durationOptions = if (isV25) {
+        listOf("4s" to "4 秒", "5s" to "5 秒", "8s" to "8 秒", "10s" to "10 秒", "12s" to "12 秒")
+    } else {
+        listOf("5s" to "5 秒", "10s" to "10 秒")
+    }
+    val qualityOptions = if (isV25) {
+        listOf("720P" to "720P")
+    } else {
+        listOf("720P" to "720P", "1080P" to "1080P")
     }
     Column(
         modifier = Modifier
@@ -580,6 +609,17 @@ private fun VideoParamsBar(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            CollapsibleParamChip(
+                label = "模型",
+                valueLabel = videoModelLabel(state.videoModel),
+                options = listOf(
+                    VIDEO_MODEL_2_5_FLASH to "2.5 Flash",
+                    VIDEO_MODEL to "v2.0"
+                ),
+                selected = state.videoModel,
+                enabled = enabled,
+                onSelect = onSelectModel
+            )
             FramesChip(
                 firstFrame = state.firstFrameImage,
                 lastFrame = state.lastFrameImage,
@@ -588,8 +628,8 @@ private fun VideoParamsBar(
             )
             CollapsibleParamChip(
                 label = "时长",
-                valueLabel = if (state.duration == "5s") "5 秒" else "10 秒",
-                options = listOf("5s" to "5s", "10s" to "10s"),
+                valueLabel = state.duration.removeSuffix("s") + " 秒",
+                options = durationOptions,
                 selected = state.duration,
                 enabled = enabled,
                 onSelect = onSelectDuration
@@ -597,7 +637,7 @@ private fun VideoParamsBar(
             CollapsibleParamChip(
                 label = "清晰度",
                 valueLabel = state.quality,
-                options = listOf("720P" to "720P", "1080P" to "1080P"),
+                options = qualityOptions,
                 selected = state.quality,
                 enabled = enabled,
                 onSelect = onSelectQuality
@@ -700,7 +740,8 @@ private fun SectionLabel(text: String) {
     )
 }
 
-/** 折叠参数胶囊块：平时只显示"标签 + 当前值"，点击展开下拉选项，选择后自动收起。 */
+/** 折叠参数胶囊块：平时只显示"标签 + 当前值"，点击展开下拉选项，选择后自动收起。
+ *  options 的 first 为回传值，second 为菜单显示文本。 */
 @Composable
 private fun <T> CollapsibleParamChip(
     label: String,
@@ -718,9 +759,9 @@ private fun <T> CollapsibleParamChip(
             enabled = enabled
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (value, _) ->
+            options.forEach { (value, textLabel) ->
                 DropdownMenuItem(
-                    text = { Text(value) },
+                    text = { Text(textLabel as? String ?: value) },
                     onClick = {
                         onSelect(value as T)
                         expanded = false

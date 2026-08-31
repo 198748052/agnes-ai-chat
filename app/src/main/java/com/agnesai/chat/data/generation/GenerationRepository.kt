@@ -27,6 +27,7 @@ interface GenerationRepository {
      * 生成视频（异步任务，内部轮询直到完成或失败）。
      *
      * @param prompt          提示词
+     * @param model           视频模型（agnes-video-v2.0 / agnes-video-2.5-flash）
      * @param firstFrameImage 图生视频的首帧图（Data URI Base64），空表示文生视频
      * @param lastFrameImage  尾帧图（Data URI Base64，可选，与首帧共同指定时生成首尾帧过渡）
      * @param duration        视频时长（如 5s / 10s）
@@ -36,6 +37,7 @@ interface GenerationRepository {
      */
     suspend fun generateVideo(
         prompt: String,
+        model: String,
         firstFrameImage: String?,
         lastFrameImage: String?,
         duration: String,

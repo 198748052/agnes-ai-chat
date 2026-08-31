@@ -97,13 +97,6 @@ API Key 在 App「设置」页配置，仅保存在本地 DataStore 中。
 
 覆盖：`StreamParser` SSE 解析、`ChatRepository` / `ChatViewModel`（含错误与取消路径）、生成参数编解码与视频尺寸解析、`MyWorksRepository` / `MyWorksViewModel`、`StorageModels`。
 
-## 后端服务（可选）
-
-`server-go/` 与 `server/` 是早期版本（含账号体系时）的配套后端，当前 App 已完全本地化，无需部署即可使用全部功能。如需参考：
-
-- **Go 版（推荐）**：`server-go/`，零第三方依赖（纯标准库），支持 Docker Compose / systemd 编排，详见 `server-go/README.md`
-- **Python 单文件测试版**：`python3 server/simple_server.py`（标准库实现，用户数据存 JSON），详见 `server/README.md`
-
 ## 开源协议
 
 本项目基于 [MIT License](LICENSE) 开源。

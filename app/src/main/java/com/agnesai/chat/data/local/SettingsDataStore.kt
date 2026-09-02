@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.agnesai.chat.data.network.MODEL_NAME
+import com.agnesai.chat.data.network.API_BASE_URL
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -26,6 +27,7 @@ class SettingsDataStore(private val context: Context) {
     companion object {
         private val KEY_API_KEY = stringPreferencesKey("api_key")
         private val KEY_SYSTEM_PROMPT = stringPreferencesKey("system_prompt")
+        private val KEY_BASE_URL = stringPreferencesKey("base_url")
         private val KEY_MODEL_NAME = stringPreferencesKey("model_name")
         private val KEY_TEMPERATURE = floatPreferencesKey("temperature")
         private val KEY_TOP_P = floatPreferencesKey("top_p")
@@ -35,6 +37,11 @@ class SettingsDataStore(private val context: Context) {
 
     val apiKey: Flow<String> = context.settingsDataStore.data.map {
         it[KEY_API_KEY].orEmpty()
+    }
+
+    /** API Base URL；未设置或为空白时回退默认地址 */
+    val baseUrl: Flow<String> = context.settingsDataStore.data.map {
+        it[KEY_BASE_URL]?.takeIf(String::isNotBlank) ?: API_BASE_URL
     }
     val systemPrompt: Flow<String> = context.settingsDataStore.data.map {
         it[KEY_SYSTEM_PROMPT]?.takeIf(String::isNotBlank) ?: DEFAULT_SYSTEM_PROMPT
@@ -52,12 +59,26 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun getApiKey(): String = apiKey.first()
 
+    suspend fun getBaseUrl(): String = baseUrl.first()
+
     suspend fun getSystemPrompt(): String = systemPrompt.first()
 
     suspend fun getChatSettings(): ChatSettings = chatSettings.first()
 
     suspend fun setApiKey(value: String) {
         context.settingsDataStore.edit { it[KEY_API_KEY] = value.trim() }
+    }
+
+    /** 保存 API 地址；空值移除键以回退默认地址 */
+    suspend fun setBaseUrl(value: String) {
+        context.settingsDataStore.edit { prefs ->
+            val trimmed = value.trim()
+            if (trimmed.isEmpty()) {
+                prefs.remove(KEY_BASE_URL)
+            } else {
+                prefs[KEY_BASE_URL] = trimmed
+            }
+        }
     }
 
     suspend fun setSystemPrompt(value: String) {

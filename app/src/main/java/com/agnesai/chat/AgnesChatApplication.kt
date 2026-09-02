@@ -12,4 +12,9 @@ class AgnesChatApplication : Application() {
         super.onCreate()
         appContainer = AppContainer(this)
     }
+
+    override fun onTerminate() {
+        super.onTerminate()
+        appContainer.onCleared()
+    }
 }

@@ -2,9 +2,16 @@ package com.agnesai.chat.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agnesai.chat.data.generation.GenerationIntent
+import com.agnesai.chat.data.generation.GenerationIntentParser
+import com.agnesai.chat.data.generation.GenerationParams
+import com.agnesai.chat.data.generation.GenerationParamsCodec
+import com.agnesai.chat.data.generation.GenerationRepository
 import com.agnesai.chat.data.local.MessageStatus
 import com.agnesai.chat.data.local.Roles
 import com.agnesai.chat.data.local.SessionType
+import com.agnesai.chat.data.network.IMAGE_MODEL_2_5
+import com.agnesai.chat.data.network.VIDEO_MODEL_2_5_FLASH
 import com.agnesai.chat.data.repository.ChatRepository
 import com.agnesai.chat.data.repository.HttpException
 import com.agnesai.chat.data.repository.PersistImagesResult
@@ -22,7 +29,8 @@ import kotlin.coroutines.coroutineContext
 import java.io.IOException
 import java.util.concurrent.CancellationException
 class ChatViewModel(
-    private val repository: ChatRepository
+    private val repository: ChatRepository,
+    private val generationRepository: GenerationRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -38,6 +46,13 @@ class ChatViewModel(
     private var sessionId: Long = 0L
     private var streamJob: Job? = null
     private var messagesCollector: Job? = null
+
+    /** 当前内联生成任务（聊天内意图触发的图片/视频生成） */
+    private var generationJob: Job? = null
+
+    /** 正在内联生成的助手消息 id；0 表示无进行中任务。用于 UI 区分"生成中"与"生成中断" */
+    private val _generatingMessageId = MutableStateFlow(0L)
+    val generatingMessageId = _generatingMessageId.asStateFlow()
 
     init {
         observeSessions()
@@ -302,6 +317,7 @@ class ChatViewModel(
 
     /**
      * 流式请求收尾：协程取消时清理残留占位消息；成功将占位落库 DONE；失败落库 ERROR。
+     * 回复命中内联生成意图时转为生成占位并启动生成任务。
      * 仅在目标会话仍为当前会话时刷新界面状态，避免切走后串台。
      */
     private suspend fun finishStreaming(
@@ -316,6 +332,15 @@ class ChatViewModel(
 
         result.fold(
             onSuccess = { full ->
+                // 命中内联生成意图：消息转为生成占位，展示文本剥离协议标记
+                val intent = GenerationIntentParser.parse(full)
+                if (intent != null && generationRepository != null) {
+                    beginInlineGeneration(targetSession, assistantId, GenerationIntentParser.displayText(full), intent)
+                    if (targetSession == sessionId) {
+                        _streamingContent.value = ""
+                    }
+                    return@fold
+                }
                 repository.updateMessage(assistantId, full, MessageStatus.DONE)
                 _streamingContent.value = ""
                 if (targetSession == sessionId) {
@@ -340,6 +365,85 @@ class ChatViewModel(
                 }
             }
         )
+    }
+
+    /**
+     * 启动聊天内联生成：占位消息置 GENERATING，后台调用生成接口。
+     * 生成期间 isStreaming 复位（不阻塞继续聊天）；结果写回原会话消息。
+     */
+    private fun beginInlineGeneration(
+        targetSession: Long,
+        messageId: Long,
+        displayText: String,
+        intent: GenerationIntent
+    ) {
+        val params = when (intent) {
+            is GenerationIntent.Image -> GenerationParams(
+                type = SessionType.IMAGE,
+                model = IMAGE_MODEL_2_5,
+                ratio = "1:1"
+            )
+            is GenerationIntent.Video -> GenerationParams(
+                type = SessionType.VIDEO,
+                model = VIDEO_MODEL_2_5_FLASH,
+                duration = "5s",
+                quality = "720P",
+                ratio = "16:9"
+            )
+        }
+        val paramsJson = GenerationParamsCodec.encode(params)
+        val generationRepo = generationRepository ?: return
+
+        generationJob = viewModelScope.launch {
+            repository.updateMessageWithParams(messageId, displayText, paramsJson, MessageStatus.GENERATING)
+            _generatingMessageId.value = messageId
+            if (targetSession == sessionId) {
+                _uiState.update { it.copy(isStreaming = false, error = null) }
+            }
+
+            val result = when (intent) {
+                is GenerationIntent.Image -> generationRepo.generateImage(
+                    prompt = intent.prompt,
+                    model = IMAGE_MODEL_2_5,
+                    size = "2K",
+                    ratio = "1:1",
+                    referenceImages = emptyList()
+                )
+                is GenerationIntent.Video -> generationRepo.generateVideo(
+                    prompt = intent.prompt,
+                    model = VIDEO_MODEL_2_5_FLASH,
+                    firstFrameImage = null,
+                    lastFrameImage = null,
+                    duration = "5s",
+                    quality = "720P",
+                    ratio = "16:9"
+                )
+            }
+
+            _generatingMessageId.value = 0L
+            result.fold(
+                onSuccess = { url ->
+                    repository.updateMessageWithParams(messageId, url, paramsJson, MessageStatus.DONE)
+                },
+                onFailure = { e ->
+                    // 用户取消：由 cancelGeneration 负责删除占位，此处静默退出
+                    if (e is CancellationException) return@fold
+                    val message = e.message ?: "生成失败，请稍后重试"
+                    repository.updateMessageWithParams(messageId, message, paramsJson, MessageStatus.ERROR)
+                }
+            )
+        }
+    }
+
+    /** 取消进行中的内联生成：终止任务并删除占位消息。 */
+    fun cancelGeneration() {
+        val messageId = _generatingMessageId.value
+        generationJob?.cancel()
+        generationJob = null
+        _generatingMessageId.value = 0L
+        if (messageId != 0L) {
+            viewModelScope.launch { repository.deleteMessage(messageId) }
+        }
     }
 }
 

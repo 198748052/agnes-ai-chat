@@ -28,6 +28,19 @@ class HttpException(val code: Int, val errorBody: String = "") : IOException("HT
 /** 发送给模型的单次上下文历史消息上限，防止长对话 token 超限 / 请求体过大。 */
 const val MAX_HISTORY_MESSAGES = 20
 
+/**
+ * 聊天内联生成意图协议：要求模型在判断用户想生成图片/视频时，
+ * 在自然回应后输出约定标记，客户端解析后自动调用生成接口。
+ * 纯提示词实现，兼容任意 OpenAI 兼容端点，不依赖 function calling。
+ */
+val GENERATION_PROTOCOL_PROMPT = """
+当用户希望生成图片或视频时，你必须在自然回应（一两句话）之后，单独输出一个协议标记：
+- 生成图片：[GENERATE_IMAGE]提示词[/GENERATE_IMAGE]
+- 生成视频：[GENERATE_VIDEO]提示词[/GENERATE_VIDEO]
+标记内的提示词应是根据用户需求提炼的详细画面描述。仅当用户明确表达生成意图时输出标记；
+普通对话、提问、闲聊时严禁输出任何标记。
+""".trim()
+
 private data class ErrorDetailBody(val detail: String? = null)
 
 private val errorDetailMoshi = Moshi.Builder()
@@ -242,7 +255,8 @@ class ChatRepository(
                 }
             }
         }
-        val messages = buildContextMessages(history, systemPrompt) { relativePath ->
+        // 意图协议追加在用户系统提示词之后，保持用户自定义提示词生效
+        val messages = buildContextMessages(history, "$systemPrompt\n\n$GENERATION_PROTOCOL_PROMPT") { relativePath ->
             imageDataUris[relativePath]
         }
 

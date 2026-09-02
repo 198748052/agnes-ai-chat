@@ -56,6 +56,8 @@ object MessageStatus {
     const val ERROR = "error"
     const val STREAMING = "streaming"
     const val SENDING = "sending"
+    /** 聊天内联生成进行中（占位消息，可取消） */
+    const val GENERATING = "generating"
 }
 
 object Roles {

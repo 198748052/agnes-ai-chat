@@ -93,7 +93,7 @@ interface MessageDao {
         FROM messages m
         INNER JOIN sessions s ON m.sessionId = s.id
         WHERE m.role = 'assistant' AND m.status = 'done'
-          AND s.type IN ('image', 'video')
+          AND m.params IS NOT NULL
         ORDER BY m.timestamp DESC, m.id DESC
         """
     )

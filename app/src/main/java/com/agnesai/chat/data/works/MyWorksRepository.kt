@@ -23,14 +23,19 @@ class MyWorksRepository(
         messageDao.delete(messageId)
     }
 
-    private fun MyWorkRow.toMyWork(): MyWork = MyWork(
-        id = id,
-        sessionId = sessionId,
-        type = sessionType,
-        url = content,
-        prompt = prompt,
-        sessionTitle = sessionTitle,
-        timestamp = timestamp,
-        params = GenerationParamsCodec.decode(params)
-    )
+    private fun MyWorkRow.toMyWork(): MyWork {
+        val decoded = GenerationParamsCodec.decode(params)
+        // 作品类型优先取生成参数（聊天内联生成的作品位于 chat 会话），回退会话类型
+        val workType = decoded?.type ?: sessionType
+        return MyWork(
+            id = id,
+            sessionId = sessionId,
+            type = workType,
+            url = content,
+            prompt = prompt,
+            sessionTitle = sessionTitle,
+            timestamp = timestamp,
+            params = decoded
+        )
+    }
 }

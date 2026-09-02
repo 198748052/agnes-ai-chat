@@ -1,5 +1,7 @@
 package com.agnesai.chat.ui.chat
 
+import com.agnesai.chat.data.generation.GenerationParams
+import com.agnesai.chat.data.generation.GenerationParamsCodec
 import com.agnesai.chat.data.local.MessageEntity
 import com.agnesai.chat.data.local.MessageStatus
 import com.agnesai.chat.data.local.Roles
@@ -10,17 +12,22 @@ data class UiMessage(
     val id: Long,
     val role: String,
     val content: String,
+    val status: String,
     val isError: Boolean,
     /** 生成参数 JSON（图片/视频生成消息专用，文本消息为 null） */
     val params: String? = null,
     /** 多模态图片相对路径列表（filesDir 下，文本消息为空） */
     val imagePaths: List<String> = emptyList()
-)
+) {
+    /** 内联/创作生成的参数；文本消息为 null */
+    val generationParams: GenerationParams? by lazy { GenerationParamsCodec.decode(params) }
+}
 
 fun MessageEntity.toUiMessage(): UiMessage = UiMessage(
     id = id,
     role = role,
     content = content,
+    status = status,
     isError = role == Roles.ASSISTANT && status == MessageStatus.ERROR,
     params = params,
     imagePaths = parseImagePaths(imagePaths)

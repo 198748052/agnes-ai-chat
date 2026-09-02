@@ -12,6 +12,7 @@ import com.agnesai.chat.data.local.SettingsDataStore
 import com.agnesai.chat.data.network.AgnesApiService
 import com.agnesai.chat.data.network.AgnesGenerationApiService
 import com.agnesai.chat.data.network.API_BASE_URL
+import com.agnesai.chat.data.network.BaseUrlInterceptor
 import com.agnesai.chat.data.network.ChatMessageDto
 import com.agnesai.chat.data.network.ChatMessageDtoAdapter
 import com.agnesai.chat.data.repository.ChatRepository
@@ -28,10 +29,15 @@ import com.agnesai.chat.ui.stats.StatsViewModel
 import com.agnesai.chat.ui.storage.StorageViewModel
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
 
 class AppContainer(context: Context) {
@@ -40,12 +46,35 @@ class AppContainer(context: Context) {
 
     private val settingsDataStore = SettingsDataStore(appContext)
 
+    private val containerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** 最近一次保存的 API 地址；OkHttp IO 线程读取，引用读写原子 */
+    @Volatile
+    private var currentBaseUrl: String = API_BASE_URL
+
+    init {
+        containerScope.launch {
+            settingsDataStore.baseUrl.collect { currentBaseUrl = it }
+        }
+    }
+
+    /** Application 销毁时调用，取消设置收集协程 */
+    fun onCleared() {
+        containerScope.cancel()
+    }
+
     private val moshi = Moshi.Builder()
         .add(ChatMessageDto::class.java, ChatMessageDtoAdapter())
         .add(KotlinJsonAdapterFactory())
         .build()
 
+    /**
+     * 请求发起时用最新保存的 API 地址改写目标（实现见 [BaseUrlInterceptor]）。
+     */
+    private val baseUrlInterceptor = BaseUrlInterceptor { currentBaseUrl }
+
     private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(baseUrlInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -62,6 +91,7 @@ class AppContainer(context: Context) {
 
     // 图片/视频生成需要更长的读写超时（生成可能耗时数十秒到数分钟）
     private val generationOkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(baseUrlInterceptor)
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(360, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -120,7 +150,7 @@ class AppContainer(context: Context) {
     }
 
     val chatViewModelFactory: ViewModelProvider.Factory = viewModelFactory {
-        initializer { ChatViewModel(chatRepository) }
+        initializer { ChatViewModel(chatRepository, generationRepository) }
     }
 
     val settingsViewModelFactory: ViewModelProvider.Factory = viewModelFactory {

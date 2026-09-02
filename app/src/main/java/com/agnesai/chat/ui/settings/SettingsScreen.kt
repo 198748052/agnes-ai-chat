@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -113,6 +114,36 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Text(
+                text = "API 地址",
+                style = MaterialTheme.typography.titleMedium
+            )
+            OutlinedTextField(
+                value = uiState.baseUrl,
+                onValueChange = viewModel::onBaseUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Base URL") },
+                placeholder = { Text("https://api.agnes-ai.cn/") },
+                isError = uiState.baseUrlError != null,
+                supportingText = uiState.baseUrlError?.let { { Text(it) } },
+                singleLine = true,
+                trailingIcon = {
+                    IconButton(onClick = viewModel::onResetBaseUrl) {
+                        Icon(
+                            imageVector = Icons.Default.RestartAlt,
+                            contentDescription = "恢复默认"
+                        )
+                    }
+                }
+            )
+            Text(
+                text = "兼容 OpenAI 协议的服务端点；留空保存后使用默认地址",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(8.dp))
+
             Text(
                 text = "API Key",
                 style = MaterialTheme.typography.titleMedium

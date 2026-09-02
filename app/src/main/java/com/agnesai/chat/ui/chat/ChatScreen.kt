@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
@@ -35,6 +36,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -46,6 +48,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
@@ -68,6 +71,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -92,7 +96,11 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.agnesai.chat.data.local.MessageStatus
 import com.agnesai.chat.data.local.SessionType
+import com.agnesai.chat.ui.common.VideoPlayerDialog
+import com.agnesai.chat.ui.common.videoThumbnailFile
 import com.agnesai.chat.data.repository.MAX_MESSAGE_IMAGES
 import com.agnesai.chat.ui.conversation.ConversationDrawerContent
 import com.agnesai.chat.ui.generation.GenerationViewModel
@@ -125,6 +133,7 @@ fun ChatScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val streamingContent by viewModel.streamingContent.collectAsStateWithLifecycle()
+    val generatingMessageId by viewModel.generatingMessageId.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -337,6 +346,7 @@ fun ChatScreen(
                 FeatureTab.CHAT -> ChatPanel(
                     uiState = uiState,
                     streamingContent = streamingContent,
+                    generatingMessageId = generatingMessageId,
                     listState = listState,
                     onSuggestionClick = { prompt ->
                         input = prompt
@@ -359,6 +369,7 @@ fun ChatScreen(
                             input = ""
                         }
                     },
+                    onCancelGeneration = viewModel::cancelGeneration,
                     modifier = contentModifier
                 )
                 FeatureTab.IMAGE -> ImageGenerationPanel(
@@ -446,12 +457,14 @@ private fun FeatureTabs(
 private fun ChatPanel(
     uiState: ChatUiState,
     streamingContent: String,
+    generatingMessageId: Long,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onSuggestionClick: (String) -> Unit,
     onCopy: (String) -> Unit,
     onRegenerate: () -> Unit,
     onDelete: (Long) -> Unit,
     onResend: (String) -> Unit,
+    onCancelGeneration: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (uiState.messages.isEmpty() && !uiState.isStreaming) {
@@ -469,10 +482,12 @@ private fun ChatPanel(
             items(uiState.messages, key = { it.id }) { message ->
                 MessageBubble(
                     message = message,
+                    isGenerating = message.id == generatingMessageId,
                     onCopy = onCopy,
                     onRegenerate = onRegenerate,
                     onDelete = onDelete,
-                    onResend = onResend
+                    onResend = onResend,
+                    onCancelGeneration = onCancelGeneration
                 )
             }
             if (uiState.isStreaming) {
@@ -660,10 +675,12 @@ private fun PendingImageThumb(relativePath: String, onRemove: () -> Unit) {
 @Composable
 private fun MessageBubble(
     message: UiMessage,
+    isGenerating: Boolean,
     onCopy: (String) -> Unit,
     onRegenerate: () -> Unit,
     onDelete: (Long) -> Unit,
-    onResend: (String) -> Unit
+    onResend: (String) -> Unit,
+    onCancelGeneration: () -> Unit
 ) {
     val isUser = message.role == "user"
     val shape = if (isUser) {
@@ -685,6 +702,10 @@ private fun MessageBubble(
     var menuExpanded by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var previewPath by remember { mutableStateOf<String?>(null) }
+    var previewUrl by remember { mutableStateOf<String?>(null) }
+    var playVideoUrl by remember { mutableStateOf<String?>(null) }
+
+    val genType = message.generationParams?.type
 
     Box(
         modifier = Modifier
@@ -714,11 +735,70 @@ private fun MessageBubble(
                         }
                     }
                 }
-                Text(
-                    text = message.content.ifBlank { if (message.isError) "请求失败" else "..." },
-                    modifier = Modifier.animateContentSize(),
-                    style = MaterialTheme.typography.bodyLarge
-                )
+                when {
+                    // 内联生成进行中：进度占位 + 取消入口
+                    message.status == MessageStatus.GENERATING && isGenerating -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = if (genType == SessionType.VIDEO) "视频生成中，可能需要几分钟…" else "图片生成中…",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                        Text(
+                            text = "取消生成",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .clickable { onCancelGeneration() }
+                        )
+                    }
+                    // 生成任务已中断（进程被杀等）：提示并保留删除入口
+                    message.status == MessageStatus.GENERATING -> {
+                        Text(
+                            text = message.content.ifBlank { "生成任务已中断" },
+                            modifier = Modifier.animateContentSize(),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "生成已中断",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                    // 完成的图片消息：渲染远程图片，点击全屏预览
+                    message.status == MessageStatus.DONE && genType == SessionType.IMAGE -> {
+                        AsyncImage(
+                            model = message.content,
+                            contentDescription = "生成的图片",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 280.dp)
+                                .clickable { previewUrl = message.content }
+                        )
+                    }
+                    // 完成的视频消息：封面 + 播放入口
+                    message.status == MessageStatus.DONE && genType == SessionType.VIDEO -> {
+                        VideoMessageContent(
+                            url = message.content,
+                            onPlay = { playVideoUrl = message.content }
+                        )
+                    }
+                    else -> Text(
+                        text = message.content.ifBlank { if (message.isError) "请求失败" else "..." },
+                        modifier = Modifier.animateContentSize(),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
             }
         }
 
@@ -763,6 +843,14 @@ private fun MessageBubble(
 
     previewPath?.let { path ->
         ImagePreviewDialog(relativePath = path, onDismiss = { previewPath = null })
+    }
+
+    previewUrl?.let { url ->
+        UrlImagePreviewDialog(url = url, onDismiss = { previewUrl = null })
+    }
+
+    playVideoUrl?.let { url ->
+        VideoPlayerDialog(url = url, onDismiss = { playVideoUrl = null })
     }
 
     if (showDeleteConfirm) {
@@ -886,6 +974,87 @@ private fun ImagePreviewDialog(relativePath: String, onDismiss: () -> Unit) {
                     .statusBarsPadding()
             ) {
                 Icon(Icons.Filled.Close, contentDescription = "关闭", tint = Color.White)
+            }
+        }
+    }
+}
+
+/** 聊天内生成图片的全屏预览：远程 URL 加载。 */
+@Composable
+private fun UrlImagePreviewDialog(url: String, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xF2000000))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = url,
+                contentDescription = "图片预览",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+            ) {
+                Icon(Icons.Filled.Close, contentDescription = "关闭", tint = Color.White)
+            }
+        }
+    }
+}
+
+/** 聊天内完成的视频消息：封面缩略 + 播放按钮，点击播放。 */
+@Composable
+private fun VideoMessageContent(url: String, onPlay: () -> Unit) {
+    val context = LocalContext.current
+    val thumbnail by produceState<File?>(initialValue = null, url) {
+        value = videoThumbnailFile(context, url)
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 140.dp)
+            .clickable(onClick = onPlay)
+    ) {
+        val thumb = thumbnail
+        if (thumb != null) {
+            AsyncImage(
+                model = thumb,
+                contentDescription = "视频封面",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            )
+        }
+        Surface(
+            shape = CircleShape,
+            color = Color(0x99000000),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(40.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = "播放视频",
+                    tint = Color.White
+                )
             }
         }
     }
